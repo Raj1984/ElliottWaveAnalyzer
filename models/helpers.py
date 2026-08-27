@@ -94,6 +94,27 @@ def convert_yf_data(df: pd.DataFrame) -> pd.DataFrame:
 
     return df_output
 
+def _json_safe_dates(dates):
+    """
+    Make a list of wave x-values safe for kaleido's image export.
+
+    A wave's `.dates` is a plain Python list. When it holds pandas Timestamp
+    objects (e.g. data loaded via convert_yf_data / pd.to_datetime), kaleido
+    1.x serializes the figure with orjson, which cannot encode a Timestamp.
+    The failure is swallowed inside kaleido's worker, so write_fig_sync writes
+    no file and raises nothing. Converting to native python datetimes keeps
+    both plotly and orjson happy. Plain date strings (as used by the CSV
+    examples) are already serializable and pass through unchanged.
+    """
+    converted = []
+    for d in dates:
+        if isinstance(d, str):
+            converted.append(d)
+        else:
+            converted.append(pd.Timestamp(d).to_pydatetime())
+    return converted
+
+
 def plot_pattern(df: pd.DataFrame, wave_pattern: WavePattern, title: str = ''):
     data = go.Ohlc(x=df['Date'],
                    open=df['Open'],
@@ -101,7 +122,7 @@ def plot_pattern(df: pd.DataFrame, wave_pattern: WavePattern, title: str = ''):
                    low=df['Low'],
                    close=df['Close'])
 
-    monowaves = go.Scatter(x=wave_pattern.dates,
+    monowaves = go.Scatter(x=_json_safe_dates(wave_pattern.dates),
                            y=wave_pattern.values,
                            text=wave_pattern.labels,
                            mode='lines+markers+text',
@@ -126,7 +147,7 @@ def plot_monowave(df, monowave, title: str = ''):
                    low=df['Low'],
                    close=df['Close'])
 
-    monowaves = go.Scatter(x=monowave.dates,
+    monowaves = go.Scatter(x=_json_safe_dates(monowave.dates),
                            y=monowave.points,
                            mode='lines+markers+text',
                            textposition='middle right',
