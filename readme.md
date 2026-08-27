@@ -148,11 +148,21 @@ of A, and marks the 50–61.8% impulse-retracement target band. It states a
 plain-language stance (bull-continuation / wave-B bounce / wave-C underway) and
 flags C-targets that would breach the impulse origin as invalid.
 
-## Examples
+## Running the report
+`run_report.py` is a small CLI over `elliott_wave_report.py`. Pass a named preset
+(`silver`, `gold`, `btc`, `cupid`) or any Yahoo Finance ticker; by default it emits
+**both** swing detectors into `reports/<ticker>_<method>_elliott_report.html`.
+
+```bash
+python run_report.py gold                    # preset: GC=F, USD, from 2015
+python run_report.py silver --method peaks
+python run_report.py BTC-USD --start 2022-01-01
+python run_report.py CUPID.NS --currency ₹   # .NS tickers default to ₹
+```
+
+## Examples (raw pattern scans)
 - `example_silver.py` — `WaveAnalyzer` impulse/leading-diagonal scan on silver (SI=F).
 - `example_cupid_india.py` — the same scan on Cupid Ltd (CUPID.NS).
-- `silver_report.py` — generates the HTML report for silver with **both** swing
-  detectors side by side (`reports/SI=F_<method>_elliott_report.html`).
 
 > Elliott wave counts are inherently subjective and are revised as new bars print;
 > the swing threshold changes the count. This is educational analysis, not

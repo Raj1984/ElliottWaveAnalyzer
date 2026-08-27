@@ -24,10 +24,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   50–61.8% impulse-retracement target band. Rendered as a report section, a purple
   A-B-C chart overlay, and a plain-language stance (bull-continuation / wave-B
   bounce / wave-C underway).
-- **`example_silver.py`** and **`silver_report.py`** — silver (SI=F) `WaveAnalyzer`
-  impulse scan and a report generator that emits both ZigZag and peaks variants
-  for comparison.
-- **`example_cupid_india.py`** — Cupid Ltd (CUPID.NS) impulse/leading-diagonal scan.
+- **`run_report.py`** — a CLI over the report that takes a named preset
+  (`silver`/`gold`/`btc`/`cupid`) or any Yahoo ticker and emits both swing
+  detectors, with `--method`, `--currency` and `--start` overrides. Consolidates
+  the earlier per-instrument runners (`silver_report.py`, `btc_report.py`,
+  `gold_report.py`), which are removed. Forces UTF-8 stdout so ₹ tickers print on
+  Windows consoles.
+- **`example_silver.py`** and **`example_cupid_india.py`** — `WaveAnalyzer`
+  impulse/leading-diagonal scans on silver (SI=F) and Cupid Ltd (CUPID.NS).
 - **`.gitignore`** entries for generated `data/`, `reports/` and `images/`.
 - **Documentation:** a "Signal Report" section in `readme.md` and this `CHANGELOG.md`.
 
