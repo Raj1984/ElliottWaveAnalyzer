@@ -249,7 +249,94 @@ def analyze(df: pd.DataFrame):
         signal=signal, position=position, rationale=rationale, confidence=confidence,
         rule_notes=rule_notes, fib=fib, extensions=extensions,
         upside_target=upside_target, invalidation=invalidation,
-        w4_low=w4_low,
+        w4_low=w4_low, book=corrective_view(df),
+    )
+
+
+# --------------------- higher-degree book (F&P) count ---------------------- #
+def corrective_view(df: pd.DataFrame):
+    """Frost & Prechter reading of the *primary-degree* structure.
+
+    After a completed five-wave impulse, EWP mandates a three-wave (A-B-C)
+    correction of one larger degree. We take the whole-series impulse
+    (absolute low -> absolute high), then label the decline off that high as
+    wave A, the subsequent bounce as wave B, and project wave C by the classic
+    Fibonacci relationships (C = 0.618A / A / 1.618A measured from the B high).
+    The correction is expected to end near the 50-61.8% retracement of the
+    impulse (the "previous fourth wave of lesser degree" zone).
+    """
+    highs = df['High'].to_numpy(); lows = df['Low'].to_numpy()
+    n = len(df)
+    imp_low_idx = int(np.argmin(lows)); imp_low = float(lows[imp_low_idx])
+    imp_high_idx = int(np.argmax(highs)); imp_high = float(highs[imp_high_idx])
+    # need a genuine up-impulse (top after bottom) with room for a correction
+    if imp_high_idx <= imp_low_idx or imp_high_idx >= n - 1:
+        return None
+
+    a_low_idx = imp_high_idx + int(np.argmin(lows[imp_high_idx:]))
+    a_low = float(lows[a_low_idx])
+    b_high_idx = a_low_idx + int(np.argmax(highs[a_low_idx:]))
+    b_high = float(highs[b_high_idx])
+
+    a_len = imp_high - a_low
+    imp_range = imp_high - imp_low
+    b_retr = (b_high - a_low) / a_len if a_len else 0.0
+    a_depth = a_len / imp_range if imp_range else 0.0   # how far wave A retraced the impulse
+
+    # corrective form hint from how deep wave B retraced wave A
+    if b_retr < 0.382:
+        form = 'shallow B (<38%) — atypical for a zigzag; correction may be near complete or turning complex'
+    elif b_retr <= 0.681:
+        form = 'zigzag (5-3-5) — wave C down still expected'
+    elif b_retr <= 0.90:
+        form = 'possible flat (3-3-5) — deep B'
+    elif b_retr <= 1.05:
+        form = 'flat (3-3-5) — B ≈ fully retraces A'
+    else:
+        form = 'expanded flat / new-highs risk — B exceeds A'
+
+    # Wave C = Fibonacci multiples of A measured down from the B high. A valid
+    # correction cannot carry below the impulse origin, so tag targets that breach
+    # it: a breach means the simple large-zigzag read is inconsistent (the A low is
+    # likely already a major low, or the operative degree is smaller). Stored as
+    # (price, valid_above_origin).
+    c_targets = {name: (b_high - mult * a_len, (b_high - mult * a_len) > imp_low)
+                 for name, mult in (('C = 0.618×A', 0.618), ('C = A', 1.0), ('C = 1.618×A', 1.618))}
+    c_equalA = b_high - a_len
+    c_ref = c_equalA if c_equalA > imp_low else a_low   # chart/headline downside ref (else: retest A low)
+
+    imp_retr = {'38.2%': imp_high - 0.382 * imp_range,
+                '50.0%': imp_high - 0.500 * imp_range,
+                '61.8%': imp_high - 0.618 * imp_range,
+                '78.6%': imp_high - 0.786 * imp_range,
+                '100%':  imp_low}
+    band = (imp_retr['61.8%'], imp_retr['50.0%'])   # theory-favoured landing band
+    r50 = imp_retr['50.0%']
+
+    last_close = float(df['Close'].to_numpy()[-1])
+    if last_close > imp_high:
+        stance = ('Bull continuation',
+                  f'Price has reclaimed the {CURRENCY}{imp_high:.0f} impulse high — the five-wave '
+                  f'top is likely of lower degree and a fifth-wave extension may be running.')
+    elif last_close <= a_low:
+        stance = ('Wave C underway',
+                  f'Price is below the wave-A low ({CURRENCY}{a_low:.0f}); the correction is extending. '
+                  f'Deeper Fibonacci support sits at the 78.6% ({CURRENCY}{imp_retr["78.6%"]:.0f}) then the '
+                  f'{CURRENCY}{imp_low:.0f} origin.')
+    else:
+        stance = ('Wave B (corrective bounce)',
+                  f'At {CURRENCY}{last_close:.0f} price sits between the wave-A low ({CURRENCY}{a_low:.0f}) and the '
+                  f'{CURRENCY}{imp_high:.0f} top, stalling near the 50% impulse retracement ({CURRENCY}{r50:.0f}). '
+                  f'EWP reads this as a counter-trend B-wave — favour selling strength and buying the wave-C '
+                  f'completion, not chasing. Pivots: reclaim {CURRENCY}{r50:.0f} for the bulls; lose '
+                  f'{CURRENCY}{a_low:.0f} to open the wave-C leg down.')
+
+    return dict(
+        imp_low=imp_low, imp_low_idx=imp_low_idx, imp_high=imp_high, imp_high_idx=imp_high_idx,
+        a_low=a_low, a_low_idx=a_low_idx, b_high=b_high, b_high_idx=b_high_idx,
+        a_len=a_len, b_retr=b_retr, a_depth=a_depth, form=form,
+        c_targets=c_targets, c_ref=c_ref, imp_retr=imp_retr, band=band,
+        stance_label=stance[0], stance_note=stance[1],
     )
 
 
@@ -291,6 +378,30 @@ def build_figure(a):
                       annotation_font=dict(size=10, color='#2e7d32'))
     fig.add_hline(y=a['invalidation'], line=dict(color='#b71c1c', width=1.2, dash='dot'),
                   annotation_text=f"Invalidation {a['invalidation']:.0f}", annotation_position='bottom left')
+
+    # higher-degree Frost & Prechter A-B-C overlay (primary degree, purple)
+    book = a.get('book')
+    if book:
+        bx = lambda i: pd.Timestamp(df['Date'].iloc[i]).to_pydatetime()
+        fig.add_trace(go.Scatter(
+            x=[bx(book['imp_high_idx']), bx(book['a_low_idx']), bx(book['b_high_idx'])],
+            y=[book['imp_high'], book['a_low'], book['b_high']],
+            text=['(5)', 'A', 'B'], mode='lines+markers+text', name='Book A-B-C (primary)',
+            textposition='bottom center', textfont=dict(size=14, color='#6a1b9a'),
+            line=dict(color='#6a1b9a', width=2, dash='dash'),
+            marker=dict(size=9, symbol='diamond')))
+        fig.add_trace(go.Scatter(
+            x=[bx(book['b_high_idx']), x1], y=[book['b_high'], book['c_ref']],
+            text=['', 'C target'], mode='lines+markers+text', name='Wave C projection',
+            textposition='bottom center', textfont=dict(size=13, color='#6a1b9a'),
+            line=dict(color='#6a1b9a', width=1.5, dash='dot'),
+            marker=dict(size=7, symbol='x')))
+        lo_band, hi_band = book['band']
+        fig.add_shape(type='rect', x0=x0, x1=x1, y0=lo_band, y1=hi_band,
+                      fillcolor='rgba(255,167,38,0.12)', line_width=0, layer='below')
+        fig.add_annotation(x=x0, y=hi_band, text='  wave-C target band 50–61.8%', showarrow=False,
+                           xanchor='left', yanchor='bottom', font=dict(size=10, color='#e69100'))
+
     fig.update_layout(template='plotly_white', height=560, margin=dict(l=40, r=90, t=30, b=30),
                       xaxis_rangeslider_visible=False, legend=dict(orientation='h', y=1.02, x=0),
                       hovermode='x unified')
@@ -316,6 +427,37 @@ def wave_rows(a):
     return rows
 
 
+def build_book_card(book) -> str:
+    """Render the Frost & Prechter primary-degree A-B-C section (or '' if N/A)."""
+    if not book:
+        return ''
+    imp_rows = ''.join(
+        f'<tr><td>{p} retracement{" — target band" if p in ("50.0%", "61.8%") else ""}</td>'
+        f'<td>{CURRENCY}{l:.2f}</td></tr>' for p, l in book['imp_retr'].items())
+    c_rows = ''.join(
+        (f'<tr><td>{k}</td><td class="neg">{CURRENCY}{px:.2f}</td></tr>' if valid
+         else f'<tr><td>{k}</td><td style="color:var(--muted)">{CURRENCY}{px:.2f} · below origin, invalid</td></tr>')
+        for k, (px, valid) in book['c_targets'].items())
+    any_invalid = any(not valid for _, valid in book['c_targets'].values())
+    caveat = ('' if not any_invalid else
+              '<p style="font-size:12.5px;color:var(--muted);margin:8px 0 0">A C-target below the '
+              f'{CURRENCY}{book["imp_low"]:.0f} impulse origin is impossible for a correction — read it as a '
+              'sign the wave-A low may already be a major bottom (or the true degree is smaller). Treat the '
+              f'wave-A low retest ({CURRENCY}{book["a_low"]:.0f}) then the 78.6% level as the actionable downside.</p>')
+    return f"""
+  <div class="card"><h2>Book count — Frost &amp; Prechter (primary-degree A-B-C)</h2>
+    <p style="font-size:14.5px;line-height:1.55;margin:0 0 10px">
+      <b>{book['stance_label']}.</b> {book['stance_note']}</p>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px">
+      Impulse {CURRENCY}{book['imp_low']:.2f} → {CURRENCY}{book['imp_high']:.2f} (five waves) ·
+      wave A low {CURRENCY}{book['a_low']:.2f} ({book['a_depth']*100:.0f}% retrace) ·
+      wave B high {CURRENCY}{book['b_high']:.2f} · B retraced {book['b_retr']*100:.0f}% of A → {book['form']}</p>
+    <table><thead><tr><th>Impulse retracement (where the correction should end)</th><th>Price</th></tr></thead>
+    <tbody>{imp_rows}</tbody></table>
+    <table style="margin-top:14px"><thead><tr><th>Wave C projection (from the B high)</th><th>Price</th></tr></thead>
+    <tbody>{c_rows}</tbody></table>{caveat}</div>"""
+
+
 def build_html(a):
     df = a['df']
     chart = build_figure(a).to_html(full_html=False, include_plotlyjs=True)
@@ -330,6 +472,7 @@ def build_html(a):
     filt = (f'{int(ZIGZAG_PCT*100)}% ZigZag filter' if PIVOT_METHOD == 'zigzag'
             else f'find_peaks · {int(PIVOT_PROMINENCE_PCT*100)}% prominence, {PEAK_DISTANCE}-bar spacing')
     notes = ' · '.join(a['rule_notes']) or 'insufficient completed waves to check rules'
+    book_card = build_book_card(a.get('book'))
 
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -395,7 +538,7 @@ def build_html(a):
 
   <div class="card"><h2>Upside targets (Fibonacci extensions of the advance)</h2>
     <table><thead><tr><th>Level</th><th>Price</th></tr></thead><tbody>{ext_rows or '<tr><td colspan=2>no measurable advance yet</td></tr>'}</tbody></table></div>
-
+{book_card}
   <div class="card"><h2>Chart</h2>{chart}</div>
 
   <div class="card"><h2>Method &amp; disclaimer</h2>
