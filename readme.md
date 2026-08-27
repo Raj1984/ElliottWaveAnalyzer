@@ -3,13 +3,21 @@
 First Version of an (not yet) iterative Elliott Wave scanner in financial data.
 
 ## Setup
-use Python 3.9 environment and install all packages via
+Use a Python 3.9+ environment (tested on 3.13) and install all packages via
 `pip install -r requirements.txt`
+
+Static chart export uses [`kaleido`](https://pypi.org/project/kaleido/), which
+drives a headless browser under the hood; the pinned versions
+(`plotly==6.6.0`, `kaleido==1.3.0`) are the combination this project is
+verified against.
 
 ## Quickstart
 Start with `example_monowave.py` to see how the basic concept (finding monowaves) works and play with the parameter `skip_n`.
 
 Then have a look into `example_12345_impulsive_wave.py` to see how the algorithm works for finding 12345 impulsive movements.
+
+Running an example scans the price data and writes one PNG per detected
+pattern into an `images/` folder (created automatically on first run).
 
 ## Helper
 Use `get_data.py` script to download data directly from yahoo finance.
@@ -87,3 +95,9 @@ Contains some plotting functions to plot a `MonoWave` (a single movement), a `Wa
 
 # Plotting
 For different models there are plotting functions. E.g. use `plot_monowave` to plot a `MonoWave` instance or `plot_pattern` for a `WavePattern`.
+
+Each plotting function builds a `plotly` figure and saves it as a timestamped
+PNG in the `images/` folder (charts are exported to disk, not opened in a
+browser). All exports share a single persistent `kaleido` browser that is
+started once and reused, so scanning a chart with many matches stays fast and
+avoids per-figure browser churn.
