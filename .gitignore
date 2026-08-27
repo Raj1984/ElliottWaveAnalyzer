@@ -9,5 +9,7 @@ __pycache__/
 venv/
 env/
 
-# Generated Elliott Wave chart exports
+# Generated Elliott Wave outputs
 images/
+reports/
+data/
