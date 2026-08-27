@@ -101,3 +101,14 @@ PNG in the `images/` folder (charts are exported to disk, not opened in a
 browser). All exports share a single persistent `kaleido` browser that is
 started once and reused, so scanning a chart with many matches stays fast and
 avoids per-figure browser churn.
+
+# Credits & License
+This project is derived from the upstream
+[drstevendev/ElliottWaveAnalyzer](https://github.com/drstevendev/ElliottWaveAnalyzer)
+(the `models/` core, examples, and algorithm are its work). The upstream
+repository does not carry a license, so the original code is **all rights
+reserved** by its author(s); it is included here for study and personal use.
+
+No separate open-source license is applied to this fork, as it cannot
+relicense the upstream code. Local changes here (persistent-kaleido chart
+export, dependency pins, and documentation) are offered under the same terms.
