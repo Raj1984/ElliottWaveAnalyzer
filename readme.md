@@ -102,6 +102,62 @@ browser). All exports share a single persistent `kaleido` browser that is
 started once and reused, so scanning a chart with many matches stays fast and
 avoids per-figure browser churn.
 
+# Signal Report (`elliott_wave_report.py`)
+
+The `models/` core brute-forces *micro* impulses from a single bar and is poor at
+answering "what wave is the daily chart in **now**". `elliott_wave_report.py` is a
+higher-level tool built for a tradable read: it reduces the daily series to its
+significant swings, labels the legs 1-2-3-4-5 / A-B-C, validates the core Elliott
+rules, reads the currently-forming leg to pick a BUY/SELL signal, computes
+Fibonacci buy-zones and targets, and renders a self-contained interactive HTML
+report.
+
+```bash
+python elliott_wave_report.py            # writes reports/<TICKER>_elliott_report.html
+```
+
+Configure at the top of the file:
+
+| Setting | Meaning |
+|---------|---------|
+| `TICKER`, `START` | instrument and history start (downloaded via `yfinance`) |
+| `CURRENCY` | price symbol (`₹` default; `$` for USD tickers) |
+| `PIVOT_METHOD` | swing detector: `'peaks'` (scipy, default) or `'zigzag'` |
+| `ZIGZAG_PCT` | ZigZag reversal threshold (zigzag method) |
+| `PIVOT_PROMINENCE_PCT`, `PEAK_DISTANCE` | prominence / spacing (peaks method) |
+| `RECENT_PIVOTS` | how many recent swings to anchor the count within |
+
+## Swing detectors
+Two interchangeable pivot detectors feed the same counting engine:
+
+- **`zigzag`** — classic percentage-reversal filter (`ZIGZAG_PCT`).
+- **`peaks`** — `scipy.signal.find_peaks` with prominence set as a fraction of the
+  median price, forced to strictly alternate H/L. Often resolves cleaner swings on
+  trending data.
+
+## Fibonacci levels
+Retracements (the buy-zone) and **upside extension targets** (1.272×/1.618×/2.618×)
+are computed by `fibonacci_calculator.py` — a standalone calculator for
+retracements, extensions, projections and wave relationships.
+
+## Book count — Frost & Prechter overlay
+The report also renders a **primary-degree A-B-C** reading per *Elliott Wave
+Principle*: it identifies the whole-series five-wave impulse, labels the decline off
+the top as wave A and the bounce as wave B, projects wave C by Fibonacci multiples
+of A, and marks the 50–61.8% impulse-retracement target band. It states a
+plain-language stance (bull-continuation / wave-B bounce / wave-C underway) and
+flags C-targets that would breach the impulse origin as invalid.
+
+## Examples
+- `example_silver.py` — `WaveAnalyzer` impulse/leading-diagonal scan on silver (SI=F).
+- `example_cupid_india.py` — the same scan on Cupid Ltd (CUPID.NS).
+- `silver_report.py` — generates the HTML report for silver with **both** swing
+  detectors side by side (`reports/SI=F_<method>_elliott_report.html`).
+
+> Elliott wave counts are inherently subjective and are revised as new bars print;
+> the swing threshold changes the count. This is educational analysis, not
+> investment advice.
+
 # Credits & License
 This project is derived from the upstream
 [drstevendev/ElliottWaveAnalyzer](https://github.com/drstevendev/ElliottWaveAnalyzer)
